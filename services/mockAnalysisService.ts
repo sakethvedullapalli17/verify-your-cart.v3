@@ -38,13 +38,16 @@ export const mockAnalyzeProduct = async (url: string): Promise<AnalysisResult> =
         advice = "High Risk detected. URL patterns match known scam/counterfeit signatures.";
     }
 
-    // Fixed: Added missing 'reasons' property required by AnalysisResult
+    // Determine verdict based on status for type compliance
+    const verdict: AnalysisResult['verdict'] = status === 'REAL' ? 'SAFE' : (status === 'FAKE' ? 'FAKE' : 'RISKY');
+
+    // Corrected property names to match AnalysisResult interface (riskScore, verdict, and removed redFlags)
     return {
         status,
-        safetyScore: score,
+        riskScore: score,
+        verdict,
         reason: isTrusted ? "Verified marketplace with high security standards." : (isScam ? "Suspicious domain name and keyword patterns detected." : "Unknown domain with no verifiable trust history."),
         reasons: isTrusted ? ["Verified domain signature"] : (isScam ? ["Known scam pattern", "Keyword anomaly"] : ["Unregistered domain"]),
-        redFlags: isTrusted ? ["No significant red flags"] : ["Unverified Seller", "Suspicious Price Point", "Unknown Domain Age"],
         finalMessage: advice,
         url,
         timestamp: new Date().toISOString(),

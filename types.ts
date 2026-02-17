@@ -1,13 +1,14 @@
+
 export interface AnalysisResult {
   status: 'REAL' | 'FAKE' | 'SUSPICIOUS';
-  safetyScore: number; // 0-100 Risk Score
+  riskScore: number;
+  verdict: 'SAFE' | 'RISKY' | 'FAKE';
   reason: string;
-  reasons: string[]; // Specific bullet points of logic flags
-  redFlags: string[];
+  reasons: string[];
   finalMessage: string;
   url: string;
   timestamp: string;
-  breakdown?: {
+  breakdown: {
     priceScore: number;
     sellerScore: number;
     contentScore: number;
@@ -17,6 +18,12 @@ export interface AnalysisResult {
     title: string;
     uri: string;
   }[];
+}
+
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+  isSearching?: boolean;
 }
 
 export enum ViewMode {

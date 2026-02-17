@@ -1,3 +1,4 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisResult } from '../types';
 import { mockAnalyzeProduct } from './mockAnalyzeProduct';
@@ -10,29 +11,52 @@ export const analyzeProduct = async (url: string): Promise<AnalysisResult> => {
 
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const modelName = 'gemini-3-flash-preview';
+    // Using gemini-3-pro-preview for advanced logic and high-quality search grounding
+    const modelName = 'gemini-3-pro-preview';
     
     const systemInstruction = `You are the 'Verify Your Cart' Forensic Engine. 
-    Analyze the provided URL and calculate a Risk Score (0-100) based on these 7 STRICT RULES:
+    Analyze the provided URL and calculate a Risk Score (0–100) using these 7 STRICT RULES:
 
-    1. PRICE CHECK: If price < 50% of market MSRP (+30 risk). If < 70% (+20 risk).
-    2. RATING MISMATCH: Rating > 4.5 but reviews < 20 (+20 risk).
-    3. REVIEW VOLUME: < 5 reviews (+25 risk), < 20 (+15 risk), < 50 (+8 risk).
-    4. SELLER IDENTITY: Name contains random chars/numbers or looks like bot (e.g. XJH_Store) (+15 risk).
-    5. SPAM KEYWORDS: Description uses "100% original", "lowest price", "no return", "free gift", "guaranteed" (+5 risk per keyword).
-    6. DISCOUNT ANCHOR: Claims of "90% off" or "80% off" (+20 risk).
-    7. QUALITY BASELINE: Rating < 2.5 (+30 risk), < 3.5 (+15 risk).
+    1. Price Check:
+       - Price < 50% of market MSRP: +30 risk
+       - Price < 70% of market MSRP: +20 risk
 
-    FINAL VERDICT:
-    0-30 Risk: SAFE (Verdict: Safe)
-    31-70 Risk: RISKY (Verdict: Risky)
-    >70 Risk: FAKE (Verdict: Fake)
+    2. Rating vs Reviews Mismatch:
+       - Rating > 4.5 and reviews < 20: +20 risk
+       - Rating > 4.0 and reviews < 10: +15 risk
 
-    IMPORTANT: Do not mention 'Gemini' or your internal processes. Return only the final audit report in JSON.`;
+    3. Reviews Count:
+       - reviews < 5: +25 risk
+       - reviews < 20: +15 risk
+       - reviews < 50: +8 risk
+
+    4. Seller Name:
+       - Alphanumeric string/Suspicious (e.g. XJH_Store_989): +15 risk
+       - Length < 4 chars: +10 risk
+
+    5. Spam Keywords in Description:
+       - Found "100% original", "best quality", "limited offer", "cheap price", "guaranteed", "lowest price", "no return", "free gift": +5 risk PER keyword found.
+
+    6. Extreme Discounts:
+       - "90% off" or "80% off" found: +20 risk
+
+    7. Low Rating:
+       - rating < 2.5: +30 risk
+       - rating < 3.5: +15 risk
+
+    VERDICT CALCULATION:
+    - riskScore <= 30: SAFE
+    - riskScore 31 to 70: RISKY
+    - riskScore > 70: FAKE
+
+    RULES FOR RESPONSE:
+    - Return ONLY a JSON object.
+    - Do NOT mention "Gemini" or AI processes.
+    - Use search to find current market prices and seller info.`;
 
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: `Perform a Forensic Audit on this URL: ${normalizedUrl}. Research the current market price and seller reputation using search tools.`,
+      contents: `Perform a forensic risk audit on: ${normalizedUrl}`,
       config: {
         systemInstruction: systemInstruction,
         tools: [{ googleSearch: {} }],
@@ -40,11 +64,11 @@ export const analyzeProduct = async (url: string): Promise<AnalysisResult> => {
         responseSchema: {
           type: Type.OBJECT,
           properties: {
+            riskScore: { type: Type.NUMBER },
+            verdict: { type: Type.STRING, enum: ["SAFE", "RISKY", "FAKE"] },
+            reasons: { type: Type.ARRAY, items: { type: Type.STRING } },
+            finalMessage: { type: Type.STRING },
             status: { type: Type.STRING, enum: ["REAL", "FAKE", "SUSPICIOUS"] },
-            safetyScore: { type: Type.NUMBER, description: "Final 0-100 Risk Score" },
-            reason: { type: Type.STRING, description: "Summary of the findings" },
-            reasons: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Specific bullet points of detected issues" },
-            finalMessage: { type: Type.STRING, description: "Recommendation text" },
             breakdown: {
               type: Type.OBJECT,
               properties: {
@@ -56,23 +80,26 @@ export const analyzeProduct = async (url: string): Promise<AnalysisResult> => {
               required: ["priceScore", "sellerScore", "contentScore", "technicalScore"]
             }
           },
-          required: ["status", "safetyScore", "reason", "reasons", "finalMessage", "breakdown"]
+          required: ["riskScore", "verdict", "reasons", "finalMessage", "status", "breakdown"]
         }
       }
     });
 
+    // Correctly accessing the text property from GenerateContentResponse
     const resultText = response.text;
-    if (!resultText) throw new Error("Audit service unavailable.");
+    if (!resultText) throw new Error("Verification engine failure");
     const data = JSON.parse(resultText);
 
+    // Removed 'redFlags' as it's not defined in the AnalysisResult type
     return {
       ...data,
+      reason: data.reasons.join(". "),
       url: normalizedUrl,
       timestamp: new Date().toISOString(),
     };
 
   } catch (error: any) {
-    console.warn("AI service fallback to local heuristics.");
+    console.error("Forensic Engine Fallback:", error);
     return await mockAnalyzeProduct(normalizedUrl);
   }
 };

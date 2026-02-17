@@ -1,8 +1,10 @@
+
 import React from 'react';
 import { Navbar } from './components/Navbar';
 import { Analyzer } from './components/Analyzer';
 import { Footer } from './components/Footer';
 import { FeaturesSection, GuideSection, TipsSection, TeamSection, VisionSection, ContactSection, ProblemSection } from './components/Sections';
+import { ChatBox } from './components/ChatBox';
 
 const App: React.FC = () => {
   return (
@@ -42,6 +44,9 @@ const App: React.FC = () => {
       </main>
 
       <Footer />
+      
+      {/* Floating Gemini AI Chatbox */}
+      <ChatBox />
     </div>
   );
 };
