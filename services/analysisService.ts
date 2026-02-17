@@ -1,22 +1,7 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { AnalysisResult } from '../types';
-import { mockAnalyzeProduct } from './mockAnalysisService';
+import { mockAnalyzeProduct } from './mockAnalyzeProduct';
 
-/**
- * List of verified official brand-owned websites (Manufacturers).
- * These are whitelisted for 100% safety as they are the direct source.
- */
-const BRAND_DIRECT_REGISTRY = [
-  'apple.com', 'nike.com', 'adidas.com', 'samsung.com', 'zara.com', 
-  'hm.com', 'uniqlo.com', 'microsoft.com', 'sony.com', 'dell.com', 
-  'hp.com', 'lenovo.com', 'bose.com', 'lg.com', 'canon.com', 
-  'adobe.com', 'puma.com', 'reebok.com', 'levis.com'
-];
-
-/**
- * TrustLens Global Forensic Intelligence Engine
- * Strictly follows the "Fraud Detection Logic (Basis)" provided.
- */
 export const analyzeProduct = async (url: string): Promise<AnalysisResult> => {
   let normalizedUrl = url.toLowerCase().trim();
   if (!normalizedUrl.startsWith('http')) {
@@ -24,76 +9,30 @@ export const analyzeProduct = async (url: string): Promise<AnalysisResult> => {
   }
 
   try {
-    const urlObj = new URL(normalizedUrl);
-    const hostname = urlObj.hostname.replace('www.', '');
-    
-    // WHIELIST CHECK: Direct brand manufacturers are 100% safe.
-    const isVerifiedOriginal = BRAND_DIRECT_REGISTRY.some(domain => 
-      hostname === domain || hostname.endsWith('.' + domain)
-    );
-
-    if (isVerifiedOriginal) {
-      return {
-        status: 'REAL',
-        safetyScore: 100,
-        reason: `Direct Verification: ${hostname} is the official manufacturer domain. This is the source of truth, bypassing all third-party risks.`,
-        redFlags: [],
-        finalMessage: "This is an official brand website. 100% Authentic.",
-        breakdown: { priceScore: 100, sellerScore: 100, contentScore: 100, technicalScore: 100 },
-        url: normalizedUrl,
-        timestamp: new Date().toISOString(),
-      };
-    }
-  } catch (e) {
-    console.warn("URL Parsing failed, proceeding with deep audit.", e);
-  }
-
-  // DEEP AUDIT FOR ALL OTHER LINKS (Flipkart, Myntra, etc.)
-  try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    const modelName = 'gemini-3-pro-preview';
+    const modelName = 'gemini-3-flash-preview';
     
-    const systemInstruction = `You are an Elite Forensic Cyber-Investigator. Calculate a "Risk Score" (0-100) for the provided URL based on these 7 strictly weighted checks:
+    const systemInstruction = `You are the 'Verify Your Cart' Forensic Engine. 
+    Analyze the provided URL and calculate a Risk Score (0-100) based on these 7 STRICT RULES:
 
-1. PRICE CHECK (VS MARKET MSRP):
-   - Price < 50% of market value: +30 Risk.
-   - Price < 70% of market value: +20 Risk.
+    1. PRICE CHECK: If price < 50% of market MSRP (+30 risk). If < 70% (+20 risk).
+    2. RATING MISMATCH: Rating > 4.5 but reviews < 20 (+20 risk).
+    3. REVIEW VOLUME: < 5 reviews (+25 risk), < 20 (+15 risk), < 50 (+8 risk).
+    4. SELLER IDENTITY: Name contains random chars/numbers or looks like bot (e.g. XJH_Store) (+15 risk).
+    5. SPAM KEYWORDS: Description uses "100% original", "lowest price", "no return", "free gift", "guaranteed" (+5 risk per keyword).
+    6. DISCOUNT ANCHOR: Claims of "90% off" or "80% off" (+20 risk).
+    7. QUALITY BASELINE: Rating < 2.5 (+30 risk), < 3.5 (+15 risk).
 
-2. RATING vs REVIEWS MISMATCH:
-   - Rating > 4.5 but Reviews < 20: +20 Risk.
-   - Rating > 4.0 but Reviews < 10: +15 Risk.
+    FINAL VERDICT:
+    0-30 Risk: SAFE (Verdict: Safe)
+    31-70 Risk: RISKY (Verdict: Risky)
+    >70 Risk: FAKE (Verdict: Fake)
 
-3. REVIEWS COUNT:
-   - Total Reviews < 5: +25 Risk.
-   - Total Reviews < 20: +15 Risk.
-   - Total Reviews < 50: +8 Risk.
-
-4. SELLER REPUTATION:
-   - Name contains numbers/special chars (e.g. "XJH_Store_989"): +15 Risk.
-   - Name length < 4 chars: +10 Risk.
-
-5. SPAM KEYWORDS (Check Description/Title):
-   - Keywords: "100% original", "best quality", "limited offer", "cheap price", "guaranteed", "lowest price", "no return", "free gift".
-   - Each keyword found: +5 Risk.
-
-6. DISCOUNT CLAIMS:
-   - Contains "90% off" or "80% off": +20 Risk.
-
-7. LOW RATING:
-   - Rating < 2.5: +30 Risk.
-   - Rating < 3.5: +15 Risk.
-
-FINAL VERDICT RULES:
-- Safe: Risk Score <= 30 (Safety Score >= 70).
-- Risky: Risk Score 31-70 (Safety Score 30-69).
-- Fake: Risk Score > 70 (Safety Score < 30).
-
-Use the googleSearch tool to find actual product details (price, rating, reviews, seller name) for the URL. Then calculate the Risk Score.
-Return ONLY a JSON object.`;
+    IMPORTANT: Do not mention 'Gemini' or your internal processes. Return only the final audit report in JSON.`;
 
     const response = await ai.models.generateContent({
       model: modelName,
-      contents: `INVESTIGATE URL: ${normalizedUrl}. Find product price, rating, reviews, and seller details to calculate the Risk Score.`,
+      contents: `Perform a Forensic Audit on this URL: ${normalizedUrl}. Research the current market price and seller reputation using search tools.`,
       config: {
         systemInstruction: systemInstruction,
         tools: [{ googleSearch: {} }],
@@ -102,10 +41,10 @@ Return ONLY a JSON object.`;
           type: Type.OBJECT,
           properties: {
             status: { type: Type.STRING, enum: ["REAL", "FAKE", "SUSPICIOUS"] },
-            safetyScore: { type: Type.NUMBER, description: "Calculate as (100 - Total Risk Score)" },
-            reason: { type: Type.STRING, description: "List the specific logic checks that failed" },
-            redFlags: { type: Type.ARRAY, items: { type: Type.STRING } },
-            finalMessage: { type: Type.STRING, description: "Final recommendation for user" },
+            safetyScore: { type: Type.NUMBER, description: "Final 0-100 Risk Score" },
+            reason: { type: Type.STRING, description: "Summary of the findings" },
+            reasons: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Specific bullet points of detected issues" },
+            finalMessage: { type: Type.STRING, description: "Recommendation text" },
             breakdown: {
               type: Type.OBJECT,
               properties: {
@@ -117,39 +56,23 @@ Return ONLY a JSON object.`;
               required: ["priceScore", "sellerScore", "contentScore", "technicalScore"]
             }
           },
-          required: ["status", "safetyScore", "reason", "redFlags", "finalMessage", "breakdown"]
+          required: ["status", "safetyScore", "reason", "reasons", "finalMessage", "breakdown"]
         }
       }
     });
 
     const resultText = response.text;
-    if (!resultText) throw new Error("Forensic engine timed out.");
+    if (!resultText) throw new Error("Audit service unavailable.");
     const data = JSON.parse(resultText);
 
-    // Extract sources
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-    const sources = groundingChunks
-      .filter((chunk: any) => chunk.web)
-      .map((chunk: any) => ({
-        title: chunk.web.title || "Verification Source",
-        uri: chunk.web.uri
-      }));
-
     return {
-      status: data.status as AnalysisResult['status'],
-      safetyScore: data.safetyScore,
-      reason: data.reason,
-      redFlags: data.redFlags,
-      finalMessage: data.finalMessage,
-      breakdown: data.breakdown,
-      sources: sources.length > 0 ? sources : undefined,
+      ...data,
       url: normalizedUrl,
       timestamp: new Date().toISOString(),
     };
 
   } catch (error: any) {
-    console.error("Critical Failure:", error);
-    if (error?.message?.includes('429')) throw new Error("QUOTA_EXCEEDED");
+    console.warn("AI service fallback to local heuristics.");
     return await mockAnalyzeProduct(normalizedUrl);
   }
 };

@@ -1,3 +1,4 @@
+
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import process from 'node:process';
@@ -21,7 +22,7 @@ export default defineConfig(({ mode }) => {
       }
     },
     define: {
-      // Correctly shim process.env.API_KEY while allowing other process.env usage if needed
+      // Shims process.env.API_KEY to work with both Vercel/Netlify env vars
       'process.env': JSON.stringify({
         API_KEY: env.API_KEY || env.VITE_API_KEY || ''
       }),

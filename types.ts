@@ -1,8 +1,8 @@
-
 export interface AnalysisResult {
   status: 'REAL' | 'FAKE' | 'SUSPICIOUS';
-  safetyScore: number; // 0-100 (0 = Fraud, 100 = Authentic)
+  safetyScore: number; // 0-100 Risk Score
   reason: string;
+  reasons: string[]; // Specific bullet points of logic flags
   redFlags: string[];
   finalMessage: string;
   url: string;
